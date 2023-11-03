@@ -30,7 +30,7 @@
 					</div>
 				</li>
 
-				<li v-if="false" @click="signOut()" class="relative flex items-center justify-between py-2.5 border-b px-3 hover:bg-gray-300 cursor-pointer">
+				<li v-if="user" @click="signOut()" class="relative flex items-center justify-between py-2.5 border-b px-3 hover:bg-gray-300 cursor-pointer">
 					<div class="flex items-center text-[20px] font-semibold">
 						<Icon name="octicon:sign-out" size="33" />
 						<span class="pl-4 font-extrabold">Sign out</span>
@@ -53,8 +53,8 @@
 
 	const userStore = useUserStore();
 
-	// const client = useSupabaseClient();
-	// const user = useSupabaseUser();
+	const client = useSupabaseClient();
+	const user = useSupabaseUser();
 
 	const goTo = (url) => {
 		userStore.isMenuOverlay = false;
@@ -68,6 +68,7 @@
 	};
 
 	const signIn = () => {
+		client.auth.signInWithOAuth();
 		userStore.isMenuOverlay = false;
 		return navigateTo('/auth');
 	};

@@ -5,13 +5,12 @@
 	const client = useSupabaseClient();
 	const user = useSupabaseUser();
 
-	console.log(user);
-
 	let isAccountMenu = ref(false);
 	let searchItem = ref('');
 	let items = ref(null);
 	let isSearching = ref(false);
 	let isCartHover = ref(false);
+
 	const userStore = useUserStore();
 
 	const searchByName = useDebounce(async () => {

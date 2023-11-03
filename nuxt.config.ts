@@ -7,12 +7,12 @@ export default defineNuxtConfig({
 	modules: ['nuxt-icon', 'nuxt-lodash', '@pinia/nuxt', '@pinia-plugin-persistedstate/nuxt', '@nuxtjs/tailwindcss', '@nuxtjs/supabase'],
 	runtimeConfig: {
 		public: {
-			stripePk: process.env.STRIPE_PK_KEY,
+			stripePk: `${process.env.STRIPE_PK_KEY}`,
 			supabase: {
-				redirect: false,
+				redirect: true,
 				redirectOptions: {
 					login: '/auth',
-					exclude: ['/*'],
+					// exclude: ['/*'],
 				},
 			},
 		},

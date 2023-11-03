@@ -97,9 +97,12 @@
 <script setup>
 	import MainLayout from '~/layouts/MainLayout.vue';
 	import { useUserStore } from '~/stores/user';
-	const route = useRoute();
+
 	const userStore = useUserStore();
 	const user = useSupabaseUser();
+	const route = useRoute();
+
+	definePageMeta({ middleware: 'auth' });
 
 	let stripe = null;
 	let elements = null;
@@ -112,16 +115,13 @@
 
 	onBeforeMount(async () => {
 		if (userStore.checkout.length < 1) {
-			return navigateTo('/shoppingCart');
+			return navigateTo('/shoppingcart');
 		}
-		total.value = 0.0;
 
+		total.value = 0.0;
 		if (user.value) {
 			currentAddress.value = await useFetch(`/api/prisma/get-address-by-user/${user.value.id}`);
-			console.log(currentAddress.value);
-			setTimeout(() => {
-				userStore.isLoading = false;
-			}, 200);
+			setTimeout(() => (userStore.isLoading = false), 200);
 		}
 	});
 
@@ -131,43 +131,6 @@
 		}
 	});
 
-	const cards = ref(['images/visa.png', 'images/mastercard.png', 'images/paypal.png', 'images/applepay.png']);
-
-	const totalPriceComputed = computed(() => {
-		let price = 0;
-		userStore.cart.forEach((prod) => {
-			price += prod.price;
-		});
-
-		return price / 100;
-	});
-	let selectedArray = ref([]);
-
-	const selectedRadioFunc = (e) => {
-		if (!selectedArray.value.length) {
-			selectedArray.value.push(e);
-			return;
-		}
-		selectedArray.value.forEach((item) => {
-			if (e.id != item.id) {
-				selectedArray.value.push(e);
-			} else {
-				selectedArray.value.splice(index, 1);
-			}
-		});
-	};
-
-	const goToCheckout = () => {
-		let ids = [];
-		userStore.checkout = [];
-		selectedArray.value.forEach((item) => ids.push(item.id));
-
-		let res = userStore.cart.filter((item) => {
-			return ids.indexOf(item.id) != -1;
-		});
-		res.forEach((item) => userStore.checkout.push(toRaw(item)));
-		return navigateTo('/checkout');
-	};
 	onMounted(async () => {
 		isProcessing.value = true;
 
@@ -175,18 +138,19 @@
 			total.value += item.price;
 		});
 	});
+
 	watch(
 		() => total.value,
 		() => {
 			if (total.value > 0) {
-				stripe.init();
+				stripeInit();
 			}
 		},
 	);
 
 	const stripeInit = async () => {
-		const runTimeConfig = useRuntimeConfig();
-		stripe = stripe(runTimeConfig.stripePk);
+		const runtimeConfig = useRuntimeConfig();
+		stripe = Stripe(runtimeConfig.public.stripePk);
 
 		let res = await $fetch('/api/stripe/paymentintent', {
 			method: 'POST',
@@ -194,31 +158,29 @@
 				amount: total.value,
 			},
 		});
-
 		clientSecret = res.client_secret;
 
 		elements = stripe.elements();
 
 		var style = {
 			base: {
-				fontSize: '18px',
+				fontSize: '14px',
 			},
-
 			invalid: {
 				fontFamily: 'Arial, sans-serif',
-				color: 'FFF000',
-				iconColor: 'EE4B2B',
+				color: '#EE4B2B',
+				iconColor: '#EE4B2B',
 			},
 		};
-
 		card = elements.create('card', {
 			hidePostalCode: true,
 			style: style,
 		});
 
+		// Stripe injects an iframe into the DOM
 		card.mount('#card-element');
-
 		card.on('change', function (event) {
+			// Disable the Pay button if there are no card details in the Element
 			document.querySelector('button').disabled = event.empty;
 			document.querySelector('#card-error').textContent = event.error ? event.error.message : '';
 		});

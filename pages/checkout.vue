@@ -1,0 +1,277 @@
+<template>
+	<MainLayout>
+		<div id="CheckoutPage" class="mt-10 max-w-[1200px] mx-auto px-6">
+			<div class="md:flex gap-4 justify-center mx-auto w-full">
+				<div class="md:w-[65%]">
+					<div class="bg-gray-300 rounded-lg p-6">
+						<div class="text-xl font-semibold mb-4">Delivery adress</div>
+						<div v-if="currentAddress && currentAddress.data">
+							<NuxtLink class="text-teal-700 flex items-center" to="/address">
+								<Icon name="material-symbols:add-circle-outline-rounded" size="18" class="mr-2" />
+								Update address
+							</NuxtLink>
+
+							<div class="pt-2 border-t">
+								<div class="underline pb-1">Delivery address</div>
+								<ul class="text-xs">
+									<li class="flex items-center gap-2">
+										<div>Contact name:</div>
+										<div class="font-bold">
+											{{ currentAddress.data.name }}
+										</div>
+									</li>
+
+									<li class="flex items-center gap-2">
+										<div>City:</div>
+										<div class="font-bold">
+											{{ currentAddress.data.city }}
+										</div>
+									</li>
+									<li class="flex items-center gap-2">
+										<div>ZIP-code</div>
+										<div class="font-bold">
+											{{ currentAddress.data.zipcode }}
+										</div>
+									</li>
+
+									<li class="flex items-center gap-2">
+										<div>Country:</div>
+										<div class="font-bold">
+											{{ currentAddress.data.country }}
+										</div>
+									</li>
+								</ul>
+							</div>
+						</div>
+						<NuxtLink v-else to="/address" class="flex items-center text-blue-500 hover:text-red-400">
+							<Icon name="material-symbols:library-add" size="18" class="mr-2" />
+							Add new address
+						</NuxtLink>
+					</div>
+
+					<div id="Items" class="bg-white rounded-lg mt-4">
+						<div v-for="product in userStore.checkout">
+							<CheckoutItem :product="product" />
+						</div>
+					</div>
+				</div>
+
+				<div class="md:hidden block my-4"></div>
+				<div id="PlaceOrder" class="bg-gray-300 rounded-lg p-4 h-fit">
+					<div class="text-2xl font-extrabold mb-2">Summary</div>
+					<div class="flex items-center justify-between my-4"></div>
+					<div>Total shipping</div>
+					<div>Free</div>
+					<div class="border-t"></div>
+					<div class="flex flex-col items-center justify-between my-4">
+						<div class="font-semibold">Total</div>
+						<div class="text-2xl font-bold">
+							$ <span class="font-extrabold">{{ total / 100 }}</span>
+						</div>
+					</div>
+
+					<form @submit.prevent="pay()">
+						<div id="card-element" class="border border-gray-800 p-2 rounded-sm"></div>
+
+						<p class="text-red-500 text-center font-semibold" id="card-error" role="alert"></p>
+
+						<button
+							:disabled="isProcessing"
+							type="submit"
+							class="mt-4 bg-gradient-to-r from-gray-500 to-gray-800 w-full text-gray-800 text-[21px] font-medium p-1.5 rounded-full"
+							:class="isProcessing ? 'opacity-60' : 'opacity-100'">
+							<Icon v-if="isProcessing" name="line-md:loading-loop" />
+							<div v-else>Place orders</div>
+						</button>
+					</form>
+					<div class="bg-gray-300 mt-4 rounded-lg">
+						<div class="text-start text-2xl font-extrabold">Prima</div>
+						<p class="my-2 text-lg">Prima keeps all info safe</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</MainLayout>
+</template>
+
+<script setup>
+	import MainLayout from '~/layouts/MainLayout.vue';
+	import { useUserStore } from '~/stores/user';
+	const route = useRoute();
+	const userStore = useUserStore();
+	const user = useSupabaseUser();
+
+	let stripe = null;
+	let elements = null;
+	let card = null;
+	let form = null;
+	let total = ref(0);
+	let clientSecret = null;
+	let currentAddress = ref(null);
+	let isProcessing = ref(false);
+
+	onBeforeMount(async () => {
+		if (userStore.checkout.length < 1) {
+			return navigateTo('/shoppingCart');
+		}
+		total.value = 0.0;
+
+		if (user.value) {
+			currentAddress.value = await useFetch(`/api/prisma/get-address-by-user/${user.value.id}`);
+			console.log(currentAddress.value);
+			setTimeout(() => {
+				userStore.isLoading = false;
+			}, 200);
+		}
+	});
+
+	watchEffect(() => {
+		if (route.fullPath == '/checkout' && !user.value) {
+			return navigateTo('/auth');
+		}
+	});
+
+	const cards = ref(['images/visa.png', 'images/mastercard.png', 'images/paypal.png', 'images/applepay.png']);
+
+	const totalPriceComputed = computed(() => {
+		let price = 0;
+		userStore.cart.forEach((prod) => {
+			price += prod.price;
+		});
+
+		return price / 100;
+	});
+	let selectedArray = ref([]);
+
+	const selectedRadioFunc = (e) => {
+		if (!selectedArray.value.length) {
+			selectedArray.value.push(e);
+			return;
+		}
+		selectedArray.value.forEach((item) => {
+			if (e.id != item.id) {
+				selectedArray.value.push(e);
+			} else {
+				selectedArray.value.splice(index, 1);
+			}
+		});
+	};
+
+	const goToCheckout = () => {
+		let ids = [];
+		userStore.checkout = [];
+		selectedArray.value.forEach((item) => ids.push(item.id));
+
+		let res = userStore.cart.filter((item) => {
+			return ids.indexOf(item.id) != -1;
+		});
+		res.forEach((item) => userStore.checkout.push(toRaw(item)));
+		return navigateTo('/checkout');
+	};
+	onMounted(async () => {
+		isProcessing.value = true;
+
+		userStore.checkout.forEach((item) => {
+			total.value += item.price;
+		});
+	});
+	watch(
+		() => total.value,
+		() => {
+			if (total.value > 0) {
+				stripe.init();
+			}
+		},
+	);
+
+	const stripeInit = async () => {
+		const runTimeConfig = useRuntimeConfig();
+		stripe = stripe(runTimeConfig.stripePk);
+
+		let res = await $fetch('/api/stripe/paymentintent', {
+			method: 'POST',
+			body: {
+				amount: total.value,
+			},
+		});
+
+		clientSecret = res.client_secret;
+
+		elements = stripe.elements();
+
+		var style = {
+			base: {
+				fontSize: '18px',
+			},
+
+			invalid: {
+				fontFamily: 'Arial, sans-serif',
+				color: 'FFF000',
+				iconColor: 'EE4B2B',
+			},
+		};
+
+		card = elements.create('card', {
+			hidePostalCode: true,
+			style: style,
+		});
+
+		card.mount('#card-element');
+
+		card.on('change', function (event) {
+			document.querySelector('button').disabled = event.empty;
+			document.querySelector('#card-error').textContent = event.error ? event.error.message : '';
+		});
+
+		isProcessing.value = false;
+	};
+
+	const pay = async () => {
+		if (currentAddress.value && currentAddress.value.data == '') {
+			showError('Please add shipping address');
+			return;
+		}
+		isProcessing.value = true;
+
+		let result = await stripe.confirmCardPayment(clientSecret, {
+			payment_method: { card: card },
+		});
+
+		if (result.error) {
+			showError(result.error.message);
+			isProcessing.value = false;
+		} else {
+			await createOrder(result.paymentIntent.id);
+			userStore.cart = [];
+			userStore.checkout = [];
+			setTimeout(() => {
+				return navigateTo('/success');
+			}, 500);
+		}
+	};
+
+	const createOrder = async (stripeId) => {
+		await useFetch('/api/prisma/create-order', {
+			method: 'POST',
+			body: {
+				userId: user.value.id,
+				stripeId: stripeId,
+				name: currentAddress.value.data.name,
+				address: currentAddress.value.data.address,
+				zipcode: currentAddress.value.data.zipcode,
+				city: currentAddress.value.data.city,
+				country: currentAddress.value.data.country,
+				products: userStore.checkout,
+			},
+		});
+	};
+
+	const showError = (errorMsgText) => {
+		let errorMsg = document.querySelector('#card-error');
+
+		errorMsg.textContent = errorMsgText;
+		setTimeout(() => {
+			errorMsg.textContent = '';
+		}, 4000);
+	};
+</script>

@@ -114,6 +114,9 @@
 	let isProcessing = ref(false);
 
 	onBeforeMount(async () => {
+		if (!user.value) {
+			return navigateTo('/auth');
+		}
 		if (userStore.checkout.length < 1) {
 			return navigateTo('/shoppingcart');
 		}
@@ -124,12 +127,6 @@
 			setTimeout(() => (userStore.isLoading = false), 200);
 		}
 	});
-
-	// watchEffect(() => {
-	// 	if (route.fullPath == '/checkout' && !user.value) {
-	// 		return navigateTo('/auth');
-	// 	}
-	// });
 
 	onMounted(async () => {
 		isProcessing.value = true;

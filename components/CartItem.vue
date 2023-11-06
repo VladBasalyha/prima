@@ -54,6 +54,7 @@
 					<span class="sm:block hidden bg-[#fd2871] text-white text-[10px] font-semibold px-1.5 rounded-sm min-w-[80px]">Welcome Deal</span>
 					<div class="truncate sm:pl-2">{{ product.title }}</div>
 				</div>
+
 				<button class="block items-center -mt-0.5 hover:text-red-500" @click="removeFromCart()">
 					<Icon name="ic:baseline-delete-forever" size="20" />
 				</button>

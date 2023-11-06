@@ -4,7 +4,7 @@
 			<div class="bg-gray-200 w-full p-8 min-h-[120px]">
 				<div class="flex items-center text-xl">
 					<Icon name="streamline:shipping-transfer-truck-time-truck-shipping-delivery-time-waiting-delay" size="35" />
-					<span class="pl-4">Orders</span>
+					<span class="pl-4 font-extrabold">Orders</span>
 				</div>
 
 				<div v-if="orders && orders.data" v-for="order in orders.data" class="text-md pl-[50px]">
